@@ -1,2 +1,2 @@
-# TeamFider Backend
-> Backend for [TeamFider](https://github.com/IlfiDev/TeamFinder) project
+# TeamFinder Server
+> Backend for [TeamFinder](https://github.com/IlfiDev/TeamFinder) project
