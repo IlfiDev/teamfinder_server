@@ -1,42 +1,40 @@
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 
-struct AppState {
-   app_name: String,
-}
+#[macro_use]
+extern crate log;
+
+use actix_web::{App, HttpResponse, HttpServer, Responder, get};
+use dotenv::dotenv;
+use listenfd::ListenFd;
+use std::env;
+
+mod user;
 
 
-#[get("/")]
-async fn index(data: web::Data<AppState>) -> String {
-   let app_name = &data.app_name;
-   format!("Hello {app_name}!")
-}
 
-#[post("/echo")]
-async fn echo(req_body: String) -> impl Responder {
-   HttpResponse::Ok().body(req_body)
-}
 
-async fn manual_hello() -> impl Responder {
-   HttpResponse::Ok().body("Hey there!")
-}
-
-#[actix_web::main]
+#[actix_rt::main]
 async fn main() -> std::io::Result<()> {
-   HttpServer::new(|| {
+   dotenv().ok();
+   env_logger::init();
+
+   let mut listenfd = ListenFd::from_env();
+   let mut server = HttpServer::new(||
       App::new()
-         .app_data(
-            web::Data::new(
-               AppState {
-                  app_name: String::from("Actix Web"),
-               }
-            )
-         )    
-         .service(index)
-         .service(echo)
-         .route("/hey", web::get().to(manual_hello))
-   })
-      .bind(("127.0.0.1", 8080))?
-   .run()
-      .await
+         .configure(user::init_routes)
+   );
+
+   server = match listenfd.take_tcp_listener(0)? {
+      Some(listener) => server.listen(listener)?,
+      None => {
+         let host = env::var("HOST").expect("Host not set");
+         let port = env::var("PORT").expect("Port not set");
+         server.bind(format!("{}:{}", host, port))?
+      }
+      
+   };
+
+   info!("Starting server");
+
+   server.run().await
 
 }
