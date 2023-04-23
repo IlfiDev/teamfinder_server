@@ -1,40 +1,26 @@
+mod api;
+mod models;
+mod repository;
 
-#[macro_use]
-extern crate log;
-
-use actix_web::{App, HttpResponse, HttpServer, Responder, get};
-use dotenv::dotenv;
-use listenfd::ListenFd;
-use std::env;
-
-mod user;
+use actix_web::{web::Data, App, HttpServer};
+use api::user_api::{create_user, get_user, update_user, get_all_users};
+use repository::mongodb_repo::MongoRepo;
 
 
 
-
-#[actix_rt::main]
+#[actix_web::main]
 async fn main() -> std::io::Result<()> {
-   dotenv().ok();
-   env_logger::init();
-
-   let mut listenfd = ListenFd::from_env();
-   let mut server = HttpServer::new(||
-      App::new()
-         .configure(user::init_routes)
-   );
-
-   server = match listenfd.take_tcp_listener(0)? {
-      Some(listener) => server.listen(listener)?,
-      None => {
-         let host = env::var("HOST").expect("Host not set");
-         let port = env::var("PORT").expect("Port not set");
-         server.bind(format!("{}:{}", host, port))?
-      }
-      
-   };
-
-   info!("Starting server");
-
-   server.run().await
-
+   let db = MongoRepo::init().await;
+   let db_data = Data::new(db);
+   HttpServer::new(move || {
+      App::new().app_data(db_data.clone())
+         .service(create_user)
+         .service(get_user)
+         .service(update_user)
+         .service(get_all_users)
+   })
+   .bind(("127.0.0.1", 8080))?
+   .run()
+      .await
+   
 }
